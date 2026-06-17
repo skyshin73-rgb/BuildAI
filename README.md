@@ -72,33 +72,134 @@ DailyReport/
 - **Maven 3.8.0** 이상 설치
 - **Ollama** 설치 및 모델 다운로드 (선택)
 
-### 1단계: 프로젝트 빌드
+---
 
-```bash
-# 프로젝트 디렉토리로 이동
-cd /workspaces/DailyReport
+## Windows에서 따라하기 (초등학생도 가능한 단계)
 
-# Maven을 사용하여 프로젝트 빌드
+### 1단계: Windows에 Java 설치하기
+
+1. 인터넷 브라우저를 열고 다음 주소로 이동합니다.
+   - https://adoptium.net/
+2. `Temurin 17` 또는 `Java 17`을 선택합니다.
+3. Windows용 설치 프로그램(`.msi` 또는 `.zip`)을 다운로드합니다.
+4. 다운로드한 파일을 실행하고 설치합니다.
+5. 설치가 끝나면 명령 프롬프트를 엽니다.
+6. 아래 명령을 입력하고 Enter를 누릅니다.
+
+```bat
+java -version
+```
+
+- `openjdk version "17...` 또는 비슷한 내용이 나오면 설치가 성공한 것입니다.
+
+### 2단계: Windows에 Maven 설치하기
+
+1. 인터넷 브라우저를 열고 다음 주소로 이동합니다.
+   - https://maven.apache.org/download.cgi
+2. 최신 버전의 `Binary zip archive` 파일을 다운로드합니다.
+3. 압축을 풀고 예: `C:\Program Files\apache-maven-3.x.x` 폴더 안에 둡니다.
+4. 시스템 환경 변수에 `MAVEN_HOME`을 추가합니다.
+5. `Path` 환경 변수에 `C:\Program Files\apache-maven-3.x.x\bin`을 추가합니다.
+6. 명령 프롬프트를 열고 아래 명령을 입력합니다.
+
+```bat
+mvn -version
+```
+
+- Maven 버전이 보이면 설치가 완료된 것입니다.
+
+### 3단계: 프로젝트 파일 준비하기
+
+1. `DailyReport` 폴더를 Windows PC로 복사합니다.
+   - 예: `C:\Users\사용자이름\Documents\DailyReport`
+2. 명령 프롬프트를 열고 다음 명령을 입력합니다.
+
+```bat
+cd C:\Users\사용자이름\Documents\DailyReport
+```
+
+### 4단계: `jar` 파일 만들기
+
+1. 다음 명령을 입력합니다.
+
+```bat
 mvn clean package
 ```
 
-빌드 완료 후 `target/daily-report-1.0.0.jar` 파일이 생성됩니다.
+2. 빌드가 성공하면 `target` 폴더 안에 `daily-report-1.0.0.jar` 파일이 생깁니다.
 
-### 2단계: 애플리케이션 실행
+### 5단계: `jar` 파일 실행하기
 
-```bash
-# JAR 파일 실행
-java -jar target/daily-report-1.0.0.jar
+1. 아래 명령을 입력합니다.
 
-# 또는 Maven으로 직접 실행
-mvn spring-boot:run
+```bat
+java -jar target\daily-report-1.0.0.jar
 ```
 
-### 3단계: 웹 브라우저에서 접속
+2. 실행이 시작되면 웹 브라우저를 열고 다음 주소로 이동합니다.
 
-```
+```text
 http://localhost:8080
 ```
+
+---
+
+## Windows에서 `.exe` 파일 만들기
+
+### 0단계: `jpackage` 확인하기
+
+- Java 17을 설치하면 `jpackage` 도구가 같이 설치될 수 있습니다.
+- 명령 프롬프트에서 아래 명령을 실행합니다.
+
+```bat
+jpackage --version
+```
+
+- 숫자 버전이 나오면 준비가 된 것입니다.
+
+### 1단계: 자동 빌드 스크립트 사용하기
+
+1. `DailyReport` 프로젝트 폴더로 이동합니다.
+
+```bat
+cd C:\Users\사용자이름\Documents\DailyReport
+```
+
+2. `build-windows.bat` 파일을 더블 클릭하거나 아래 명령을 실행합니다.
+
+```bat
+build-windows.bat
+```
+
+3. 빌드가 성공하면 `target\daily-report-1.0.0.jar` 파일이 만들어집니다.
+
+### 2단계: 자동 패키지 스크립트 사용하기
+
+1. `package-windows.bat` 파일을 더블 클릭하거나 아래 명령을 실행합니다.
+
+```bat
+package-windows.bat
+```
+
+2. 패키지가 성공하면 `release` 폴더 안에 `DailyReport.exe`가 생성됩니다.
+
+### 3단계: `exe` 파일 실행하기
+
+1. `release` 폴더를 엽니다.
+2. `DailyReport.exe`를 더블 클릭합니다.
+3. 프로그램이 실행되면 웹 브라우저에서 다음 주소로 이동합니다.
+
+```text
+http://localhost:8080
+```
+
+---
+
+## 꼭 기억할 것
+
+- 이 저장소에는 소스 코드가 들어가고, `.exe` 파일은 보통 따로 만들어서 사용합니다.
+- `.exe` 파일을 Git에 꼭 커밋할 필요는 없습니다. 대신 만든 `release` 폴더를 다른 사람에게 전달하거나 GitHub Release에 올리는 것이 좋습니다.
+- `java -jar` 명령으로도 프로그램을 실행할 수 있기 때문에, `.exe` 없이도 PC에서 바로 사용할 수 있습니다.
 
 ## 주요 API 엔드포인트
 
