@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getDbPath,
   setDbFolder,
@@ -9,6 +9,7 @@ import {
   convertLogContent,
   DailyLog
 } from './services/ipc';
+import { buildImportEntry, ImportEntry } from './services/importer';
 import './App.css';
 
 function App() {
@@ -28,6 +29,13 @@ function App() {
   const [successMsg, setSuccessMsg] = useState('');
   const [isConverting, setIsConverting] = useState(false);
   const [convertEngine, setConvertEngine] = useState('');
+  const [importEntries, setImportEntries] = useState<ImportEntry[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isSavingImports, setIsSavingImports] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   const getTodayString = () => {
     const d = new Date();
@@ -57,6 +65,14 @@ function App() {
       }
     }
     init();
+  }, []);
+
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+      folderInputRef.current.setAttribute('mozdirectory', '');
+    }
   }, []);
 
   // Filter logs when search terms change
@@ -93,6 +109,108 @@ function App() {
     setEditorTitle('');
     setEditorContent('');
     setErrorMsg('');
+  };
+
+  const queueImportFiles = async (files: File[]) => {
+    if (files.length === 0) {
+      showError('가져올 파일이 없습니다.');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const parsed = await Promise.all(
+        files.map(async (file) => {
+          const content = await file.text();
+          const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+          return buildImportEntry(file.name, content, relativePath);
+        })
+      );
+
+      setImportEntries((prev) => [...parsed, ...prev]);
+      showSuccess(`${parsed.length}개 파일을 불러왔습니다. 날짜가 없는 항목은 아래에서 확인해 주세요.`);
+    } catch (err: any) {
+      showError('파일 읽기에 실패했습니다: ' + err.toString());
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleFilePickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    await queueImportFiles(files);
+  };
+
+  const handleFolderPickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    await queueImportFiles(files);
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const openFolderPicker = () => {
+    folderInputRef.current?.click();
+  };
+
+  const updateImportEntry = (id: string, patch: Partial<ImportEntry>) => {
+    setImportEntries((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch, errorMessage: '' } : item))
+    );
+  };
+
+  const removeImportEntry = (id: string) => {
+    setImportEntries((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const persistImportEntry = async (entry: ImportEntry) => {
+    const created = await createLog(entry.date, entry.title.trim() || '과거 일지', entry.content);
+    setLogs((prev) => [created, ...prev]);
+    setSelectedLog(created);
+    setIsCreating(false);
+    return created;
+  };
+
+  const saveImportEntry = async (entry: ImportEntry) => {
+    if (!entry.date) {
+      updateImportEntry(entry.id, {
+        errorMessage: '날짜를 먼저 확인해 주세요.',
+      });
+      return;
+    }
+
+    updateImportEntry(entry.id, { saving: true, errorMessage: '' });
+    try {
+      await persistImportEntry(entry);
+      removeImportEntry(entry.id);
+      showSuccess(`"${entry.fileName}" 저장 완료`);
+    } catch (err: any) {
+      updateImportEntry(entry.id, {
+        errorMessage: '저장 실패: ' + err.toString(),
+        saving: false,
+      });
+      showError('일지 저장 실패: ' + err.toString());
+    }
+  };
+
+  const saveAllReadyImports = async () => {
+    const readyEntries = importEntries.filter((entry) => entry.date && !entry.saving && !entry.saved);
+    if (readyEntries.length === 0) {
+      showError('저장할 항목이 없습니다. 날짜가 비어 있는 파일은 아래에서 확인해 주세요.');
+      return;
+    }
+
+    setIsSavingImports(true);
+    try {
+      for (const entry of readyEntries) {
+        await saveImportEntry(entry);
+      }
+    } finally {
+      setIsSavingImports(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -213,6 +331,14 @@ function App() {
     }
   };
 
+  const sortedImportEntries = [...importEntries].sort((a, b) => {
+    if (a.date && !b.date) return -1;
+    if (!a.date && b.date) return 1;
+    return b.fileName.localeCompare(a.fileName, 'ko');
+  });
+  const readyImportCount = importEntries.filter((entry) => entry.date && !entry.saving).length;
+  const missingDateCount = importEntries.filter((entry) => !entry.date).length;
+
   return (
     <div className="app-container">
       {/* Top Navigation / Search Header */}
@@ -220,7 +346,7 @@ function App() {
         <div className="brand">
           <span className="logo-icon">📝</span>
           <h1>BuildAI</h1>
-          <span className="badge">2단계</span>
+          <span className="badge">3단계</span>
         </div>
         
         <div className="filter-bar">
@@ -321,6 +447,138 @@ function App() {
 
         {/* Right Pane: Detail View & Editor */}
         <main className="editor-pane">
+          <section
+            className={`import-panel ${dragActive ? 'active' : ''}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+            }}
+            onDrop={async (event) => {
+              event.preventDefault();
+              setDragActive(false);
+              await queueImportFiles(Array.from(event.dataTransfer.files));
+            }}
+          >
+            <div className="import-header">
+              <div>
+                <h2>과거 일지 업로드</h2>
+                <p>txt 파일을 끌어 놓거나 폴더를 선택하면 날짜를 추출해서 저장 대기열에 넣습니다.</p>
+              </div>
+              <div className="import-actions">
+                <button type="button" className="import-btn" onClick={openFilePicker} disabled={isImporting}>
+                  {isImporting ? '불러오는 중...' : '파일 선택'}
+                </button>
+                <button type="button" className="import-btn" onClick={openFolderPicker} disabled={isImporting}>
+                  폴더 선택
+                </button>
+                <button
+                  type="button"
+                  className="import-primary-btn"
+                  onClick={saveAllReadyImports}
+                  disabled={isSavingImports || readyImportCount === 0}
+                >
+                  {isSavingImports ? '저장 중...' : `자동 저장 ${readyImportCount}`}
+                </button>
+              </div>
+            </div>
+
+            <div className={`drop-zone ${dragActive ? 'active' : ''}`}>
+              <span>여기에 txt 파일을 드래그 앤 드롭하세요</span>
+              <span className="drop-zone-subtext">파일명 또는 본문에서 날짜를 자동 추출합니다</span>
+            </div>
+
+            <div className="import-summary">
+              <span>대기 {importEntries.length}</span>
+              <span>날짜 확인 필요 {missingDateCount}</span>
+              <span>자동 저장 가능 {readyImportCount}</span>
+            </div>
+
+            {importEntries.length > 0 && (
+              <div className="import-list">
+                {sortedImportEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`import-row ${entry.saving ? 'saving' : ''} ${entry.errorMessage ? 'error' : ''}`}
+                  >
+                    <div className="import-row-head">
+                      <div className="import-file-info">
+                        <div className="import-file-name">{entry.fileName}</div>
+                        <div className="import-file-path">{entry.relativePath}</div>
+                      </div>
+                      <div className={`import-date-pill ${entry.date ? 'ready' : 'missing'}`}>
+                        {entry.date || '날짜 확인 필요'}
+                      </div>
+                    </div>
+
+                    <div className="import-row-body">
+                      <input
+                        type="date"
+                        value={entry.date}
+                        onChange={(event) => updateImportEntry(entry.id, { date: event.target.value })}
+                        className="import-date-input"
+                      />
+                      <input
+                        type="text"
+                        value={entry.title}
+                        onChange={(event) => updateImportEntry(entry.id, { title: event.target.value })}
+                        className="import-title-input"
+                        placeholder="제목"
+                      />
+                    </div>
+
+                    <div className="import-snippet">{entry.snippet}</div>
+
+                    {entry.errorMessage && <div className="import-error">{entry.errorMessage}</div>}
+
+                    <div className="import-row-actions">
+                      <button
+                        type="button"
+                        className="import-ghost-btn"
+                        onClick={() => saveImportEntry(entry)}
+                        disabled={entry.saving}
+                      >
+                        {entry.saving ? '저장 중...' : '저장'}
+                      </button>
+                      <button
+                        type="button"
+                        className="import-ghost-btn"
+                        onClick={() => removeImportEntry(entry.id)}
+                        disabled={entry.saving}
+                      >
+                        제거
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,text/plain"
+              className="hidden-file-input"
+              onChange={handleFilePickerChange}
+            />
+            <input
+              ref={folderInputRef}
+              type="file"
+              multiple
+              accept=".txt,text/plain"
+              className="hidden-file-input"
+              onChange={handleFolderPickerChange}
+            />
+          </section>
+
           <form onSubmit={handleSave} className="editor-form">
             <div className="editor-header">
               <div className="editor-title-row">

@@ -33,8 +33,8 @@
 
 ## 📈 진행률 및 상태 요약
 
-* **현재 단계**: 2단계 구현 완료
-* **전체 진행률**: 50%
+* **현재 단계**: 3단계 구현 완료
+* **전체 진행률**: 70%
 * **완료된 작업**:
   * [x] Tauri v2 + React + TypeScript 프로젝트 스캐폴딩 및 `main.rs` 빌드 에러 해결
   * [x] npm 의존성 설치 및 빌드 환경(Cargo & Rust 환경) 검증 완료
@@ -45,9 +45,10 @@
   * [x] **AI Convert 기능 구현**: 작성 중인 내용을 사내 업무일지 문체로 정리하는 `convert_log_content` 커맨드 추가
   * [x] **llama.cpp 연동 우선 구조 구현**: 번들된 `llama-cli.exe`와 GGUF 모델이 있으면 실제 로컬 LLM 호출, 없으면 네트워크 없이 규칙 기반 오프라인 변환으로 자동 대체
   * [x] **프론트엔드 Convert UI 추가**: `AI Convert` 버튼, 변환 중 상태, 변환 엔진 표시, 오류 안내 연결
+  * [x] **대량 과거 일지 업로드 기능 구현**: txt 파일/폴더 선택, 드래그앤드롭, 자동 날짜 추출, 수동 날짜 확인, 일괄 저장 대기열 추가
+  * [x] **날짜 추출 규칙 정리**: `2026-06-17`, `2026.06.17`, `260617`, `20260617` 형식을 자동 인식하고, 실패 시 사용자 확인 입력으로 보정 가능
   * [x] **검증 완료**: `npm run build`, `cargo check` 통과
 * **미진한 사항 / 진행 예정**:
-  * [ ] 대량 과거 일지 파일 드래그앤드롭 업로드 기능 (3단계)
   * [ ] SQLite 데이터 기반 로컬 RAG 검색 기능 구현 (4단계)
   * [ ] llama.cpp / SQLite / GGUF 모델 패키징 및 최종 exe 빌드 (5단계)
 
@@ -131,6 +132,39 @@ npm run tauri build
 * `try_llama_convert`: 번들 리소스 경로에서 `llama-cli.exe`와 GGUF 모델을 찾고, 있으면 실제 로컬 LLM을 호출한다.
 * `deterministic_business_convert`: 모델이 없을 때도 결과를 반환하기 위한 오프라인 대체 정리기다.
 * `handleConvert`: 프론트에서 변환 결과를 에디터에 즉시 반영한다.
+* `buildImportEntry`: txt 파일과 폴더 업로드 항목에서 파일명/본문/경로를 분석해 날짜, 제목, 미리보기를 만든다.
+* `queueImportFiles`: 선택 또는 드롭된 파일을 읽어 업로드 대기열에 넣는다.
+* `saveImportEntry` / `saveAllReadyImports`: 날짜가 확인된 과거 일지를 SQLite에 저장하고 목록에 즉시 반영한다.
+
+### 3단계 구현 기록
+
+### 구현 내용
+* 오른쪽 편집 영역 상단에 `과거 일지 업로드` 패널을 추가했다.
+* `txt` 파일 다중 선택과 폴더 단위 선택을 지원하도록 숨김 파일 입력을 연결했다.
+* 드래그앤드롭 영역을 넣어 파일을 바로 끌어다 놓아도 업로드 대기열로 들어가게 했다.
+* 파일명, 상대경로, 본문에서 날짜를 자동 추출하고, 실패한 항목은 날짜 입력칸으로 직접 확인하도록 만들었다.
+* `2026-06-17`, `2026.06.17`, `260617`, `20260617` 형식을 자동 인식하도록 정리했다.
+* 대기열 항목은 개별 저장하거나 `자동 저장` 버튼으로 한꺼번에 저장할 수 있게 했다.
+
+### 변경된 파일
+* [src/services/importer.ts](src/services/importer.ts)
+* [src/App.tsx](src/App.tsx)
+* [src/App.css](src/App.css)
+
+### 생성된 파일
+* [src/services/importer.ts](src/services/importer.ts)
+
+### 프로젝트 트리 변화
+* `src/services/importer.ts`에 업로드 날짜 추출/제목 정리/미리보기 생성 로직이 추가됨
+* `src/App.tsx`에 업로드 패널, 드래그앤드롭, 폴더 선택, 일괄 저장 대기열이 추가됨
+* `src/App.css`에 업로드 패널과 대기열 전용 스타일이 추가됨
+
+### 주요 코드 설명
+* `extractDateFromText`: 파일명과 본문에서 다양한 날짜 표기를 정규식으로 추출한다.
+* `buildImportEntry`: 업로드 대기열 항목을 만들고 자동 추출 결과를 함께 담는다.
+* `queueImportFiles`: 선택된 파일을 모두 읽어 업로드 큐에 넣는다.
+* `saveImportEntry`: 날짜가 확인된 항목을 SQLite에 저장한다.
+* `saveAllReadyImports`: 날짜가 확정된 항목을 한 번에 저장한다.
 
 ### 실행 방법
 ```bash
@@ -145,6 +179,5 @@ npm run tauri build
 ```
 
 ### 다음 단계로 남은 것
-* 3단계: 대량 과거 일지 업로드
 * 4단계: SQLite 기반 로컬 RAG 검색
 * 5단계: llama.cpp / GGUF / SQLite 포함 최종 패키징
