@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build": "tauri build",
+    "package:check": "node scripts/check-package.mjs",
+    "package:portable": "node scripts/package-portable.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

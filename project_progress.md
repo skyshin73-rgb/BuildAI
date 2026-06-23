@@ -33,8 +33,8 @@
 
 ## 📈 진행률 및 상태 요약
 
-* **현재 단계**: 4단계 구현 완료
-* **전체 진행률**: 90%
+* **현재 단계**: 5단계 부분 완료
+* **전체 진행률**: 95%
 * **완료된 작업**:
   * [x] Tauri v2 + React + TypeScript 프로젝트 스캐폴딩 및 `main.rs` 빌드 에러 해결
   * [x] npm 의존성 설치 및 빌드 환경(Cargo & Rust 환경) 검증 완료
@@ -49,9 +49,12 @@
   * [x] **날짜 추출 규칙 정리**: `2026-06-17`, `2026.06.17`, `260617`, `20260617` 형식을 자동 인식하고, 실패 시 사용자 확인 입력으로 보정 가능
   * [x] **로컬 RAG 검색 기능 구현**: SQLite 업무일지에서 관련 항목을 검색하고, 질문에 맞는 맥락을 구성해 로컬 LLM으로 응답
   * [x] **AI 질문 패널 추가**: `AI에게 물어보기` 버튼, 대화형 질의응답 패널, 예시 질문, 검색된 참고 일지 표시
+  * [x] **포터블 패키지 생성**: `release/BuildAI-Portable/BuildAI.exe`와 실행 보조 파일을 자동 조립하는 스크립트 추가
+  * [x] **릴리스 빌드 산출물 생성**: `src-tauri/target/release/buildai.exe` 생성 및 확인
   * [x] **검증 완료**: `npm run build`, `cargo check` 통과
 * **미진한 사항 / 진행 예정**:
-  * [ ] llama.cpp / SQLite / GGUF 모델 패키징 및 최종 exe 빌드 (5단계)
+  * [ ] NSIS 기반 Tauri 설치형 번들은 외부 다운로드 차단으로 최종 완료되지 않음
+  * [ ] 실제 배포용 GGUF 모델과 `llama-cli.exe` 실파일을 `assets/models/`, `assets/ai/`에 넣는 작업
 
 ---
 
@@ -229,3 +232,59 @@ npm run tauri build
 
 ### 다음 단계로 남은 것
 * 5단계: llama.cpp / SQLite / GGUF 모델 포함 최종 패키징
+
+---
+
+## 5단계 구현 기록
+
+### 구현 내용
+* Tauri 번들 설정에 `assets/models/`와 `assets/ai/`를 리소스로 포함하도록 지정했다.
+* Windows용 NSIS 설치형 `.exe`를 목표로 `tauri build`를 실행했다.
+* `cargo build --release` 구간까지는 성공했고 `src-tauri/target/release/buildai.exe`가 생성되었다.
+* NSIS 패키징 단계는 외부 다운로드 차단으로 `nsis-3.11.zip`을 받지 못해 최종 설치형 번들은 완료되지 않았다.
+* 대신 `release/BuildAI-Portable/BuildAI.exe`를 만드는 포터블 패키징 스크립트를 추가했다.
+* 패키징 사전 점검 스크립트를 추가해 GGUF 모델과 `llama-cli.exe` 존재 여부를 확인할 수 있게 했다.
+
+### 변경된 파일
+* [package.json](package.json)
+* [src-tauri/tauri.conf.json](src-tauri/tauri.conf.json)
+* [scripts/check-package.mjs](scripts/check-package.mjs)
+* [scripts/package-portable.mjs](scripts/package-portable.mjs)
+* [docs/packaging.md](docs/packaging.md)
+* [assets/ai/.gitkeep](assets/ai/.gitkeep)
+
+### 생성된 파일
+* [scripts/check-package.mjs](scripts/check-package.mjs)
+* [scripts/package-portable.mjs](scripts/package-portable.mjs)
+* [docs/packaging.md](docs/packaging.md)
+* [assets/ai/.gitkeep](assets/ai/.gitkeep)
+* `release/BuildAI-Portable/BuildAI.exe`
+* `release/BuildAI-Portable/README.txt`
+
+### 프로젝트 트리 변화
+* `bundle.resources`가 `assets/models/`, `assets/ai/`를 포함하도록 변경됨
+* `scripts/check-package.mjs`로 최종 배포 전 필수 파일 점검 가능
+* `scripts/package-portable.mjs`로 포터블 배포본 자동 생성 가능
+* `docs/packaging.md`에 최종 패키징 절차와 제약을 문서화
+
+### 주요 코드 설명
+* `package:check`: 모델과 llama.cpp 실행 파일의 존재 여부를 검사한다.
+* `package:portable`: 릴리스 exe와 리소스를 `release/BuildAI-Portable/`로 복사한다.
+* `bundle.resources`: 실행 시 로컬 llama.cpp와 GGUF 모델을 리소스 경로에서 찾도록 보장한다.
+
+### 실행 방법
+```bash
+cmd /c npm run package:check
+cmd /c npm run package:portable
+```
+
+### 빌드 방법
+```bash
+cmd /c npm run build
+cmd /c npm run tauri:build
+```
+
+### 현재 한계와 남은 일
+* NSIS 기반 Tauri 설치형 번들은 네트워크 차단으로 `nsis-3.11.zip` 다운로드 단계에서 실패했다.
+* 현재 포터블 exe는 생성되었지만, 실제 배포용 GGUF 모델과 `llama-cli.exe` 실파일은 아직 `assets/models/`, `assets/ai/`에 채워 넣어야 한다.
+* 다음 세션에서는 모델/엔진 실파일을 넣은 뒤 `package:portable` 결과를 최종 배포본으로 확정하면 된다.
